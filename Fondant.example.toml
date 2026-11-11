@@ -1,0 +1,5 @@
+# source = "src"
+# output = "output/classes"
+# main_class = "Main"
+
+jars = []
