@@ -1,5 +1,10 @@
-# source = "src"
-# output = "output/classes"
-# main_class = "Main"
+[project]
+name = "fondant example"
+artifact = "fondant-example"
+version = "0.0.1"
 
+[java]
+source = "src/main/java"
+output = "output/classes"
+main_class = "com.github.imaqtkatt.Main"
 jars = []

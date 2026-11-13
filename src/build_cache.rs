@@ -16,17 +16,21 @@ impl BuildCache {
             return Ok(None);
         }
         let contents = std::fs::read_to_string(path)?;
-        let cache = serde_json::from_str(&contents)?;
+        let cache = toml::from_str(&contents).map_err(std::io::Error::other)?;
         Ok(Some(cache))
     }
 
     pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
-        let file = std::fs::File::options()
+        use std::io::Write;
+
+        let mut file = std::fs::File::options()
             .create(true)
             .truncate(true)
             .write(true)
             .open(path)?;
-        serde_json::to_writer(file, self)?;
+
+        let toml_string = toml::to_string(self).map_err(std::io::Error::other)?;
+        file.write_all(toml_string.as_bytes())?;
         Ok(())
     }
 }

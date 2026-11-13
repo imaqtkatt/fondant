@@ -46,7 +46,7 @@ fn build(config: &java_config::JavaConfig) -> std::io::Result<()> {
     let output = config.output_path();
 
     let mut sources = Vec::new();
-    collect_java_files(source.to_path_buf(), &mut sources)?;
+    collect_files_with_extension(source.to_path_buf(), "java", &mut sources)?;
 
     if sources.is_empty() {
         Err(std::io::Error::other("source dir is empty"))?
@@ -58,7 +58,7 @@ fn build(config: &java_config::JavaConfig) -> std::io::Result<()> {
 
     let current_cache = build_cache::BuildCache::new(
         build_cache::fingerprint_files(&sources)?,
-        config.main_class.clone(),
+        config.java.main_class.clone(),
     );
     let cache_path = config.cache_path();
     let previous_cache = build_cache::BuildCache::load(&cache_path)?;
@@ -73,7 +73,7 @@ fn build(config: &java_config::JavaConfig) -> std::io::Result<()> {
     let mut os_cmd = std::process::Command::new("javac");
     os_cmd.arg("-d").arg(output);
 
-    if !config.jars.is_empty() {
+    if !config.java.jars.is_empty() {
         unimplemented!()
     }
 
@@ -92,15 +92,12 @@ fn build(config: &java_config::JavaConfig) -> std::io::Result<()> {
 
 fn jar(config: &java_config::JavaConfig) -> std::io::Result<()> {
     let output = config.output_path();
+    let jar_name = config.jar_name();
 
     let mut os_cmd = std::process::Command::new("jar");
-
     os_cmd.arg("--create");
-
-    os_cmd.arg("--file").arg("a.jar");
-
-    os_cmd.arg("--main-class").arg(&config.main_class);
-
+    os_cmd.arg("--file").arg(jar_name);
+    os_cmd.arg("--main-class").arg(&config.java.main_class);
     os_cmd.arg("-C").arg(output).arg(".");
 
     let status = os_cmd.status()?;
@@ -118,7 +115,7 @@ fn run(config: &java_config::JavaConfig, args: &[std::ffi::OsString]) -> std::io
     let status = std::process::Command::new("java")
         .arg("--class-path")
         .arg(config.output_path())
-        .arg(&config.main_class)
+        .arg(&config.java.main_class)
         .args(args)
         .status()?;
 
@@ -130,11 +127,20 @@ fn run(config: &java_config::JavaConfig, args: &[std::ffi::OsString]) -> std::io
 }
 
 fn clean(config: &java_config::JavaConfig) -> std::io::Result<()> {
-    std::fs::remove_dir_all(config.output_path())
+    if config.cache_path().exists() {
+        std::fs::remove_file(config.cache_path())
+            .inspect_err(|_| eprintln!("failed to remove cache"))?;
+    }
+    if config.output_path().exists() {
+        std::fs::remove_dir_all(config.output_path())
+            .inspect_err(|_| eprintln!("failed to remove output directory"))?
+    }
+    Ok(())
 }
 
-fn collect_java_files(
+fn collect_files_with_extension(
     dir: std::path::PathBuf,
+    extension: &str,
     files: &mut Vec<std::path::PathBuf>,
 ) -> std::io::Result<()> {
     let mut dirs = std::collections::VecDeque::from([dir]);
@@ -147,7 +153,7 @@ fn collect_java_files(
 
             if file_type.is_dir() {
                 dirs.push_back(path);
-            } else if file_type.is_file() && path.extension().is_some_and(|e| e == "java") {
+            } else if file_type.is_file() && path.extension().is_some_and(|e| e == extension) {
                 files.push(path);
             }
         }
