@@ -3,7 +3,7 @@ mod java_config;
 
 use clap::Parser;
 
-#[derive(Clone, Copy, Debug, clap::Subcommand)]
+#[derive(Clone, Debug, clap::Subcommand)]
 enum Command {
     #[command(name = "build")]
     Build,
@@ -11,6 +11,11 @@ enum Command {
     Jar,
     #[command(name = "clean")]
     Clean,
+    #[command(name = "run")]
+    Run {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<std::ffi::OsString>,
+    },
 }
 
 #[derive(clap::Parser)]
@@ -20,17 +25,18 @@ struct Cli {
 }
 
 fn main() {
-    if let Err(e) = run() {
+    if let Err(e) = io_main() {
         eprintln!("{e}")
     }
 }
 
-fn run() -> std::io::Result<()> {
+fn io_main() -> std::io::Result<()> {
     let cli = Cli::parse();
     let config = java_config::get_java_config()?;
     match cli.command {
         Command::Build => build(&config),
         Command::Jar => jar(&config),
+        Command::Run { args } => run(&config, &args),
         Command::Clean => clean(&config),
     }
 }
@@ -101,6 +107,23 @@ fn jar(config: &java_config::JavaConfig) -> std::io::Result<()> {
 
     if !status.success() {
         Err(std::io::Error::other(format!("jar exited with {status}")))?
+    }
+
+    Ok(())
+}
+
+fn run(config: &java_config::JavaConfig, args: &[std::ffi::OsString]) -> std::io::Result<()> {
+    build(config)?;
+
+    let status = std::process::Command::new("java")
+        .arg("--class-path")
+        .arg(config.output_path())
+        .arg(&config.main_class)
+        .args(args)
+        .status()?;
+
+    if !status.success() {
+        Err(std::io::Error::other(format!("java exited with {status}")))?
     }
 
     Ok(())
